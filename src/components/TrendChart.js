@@ -2,92 +2,76 @@ import React, { useState, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine, ResponsiveContainer } from 'recharts';
 
 const METRICS = [
-  { key:'co2',     label:'CO₂',   unit:'ppm', color:'#3b82f6', threshold:1000 },
-  { key:'temp',    label:'온도',   unit:'°C',  color:'#ff4060', threshold:null },
-  { key:'hum',     label:'습도',   unit:'%',   color:'#22d3ee', threshold:null },
-  { key:'aerosol', label:'PM2.5', unit:'μg',  color:'#00e5a0', threshold:35 },
+  { key:'co2', label:'CO₂', unit:'ppm', className:'chart-blue', color:'#38bdf8', threshold:1000 },
+  { key:'temp', label:'온도', unit:'°C', className:'chart-red', color:'#ef4444', threshold:null },
+  { key:'hum', label:'습도', unit:'%', className:'chart-cyan', color:'#22d3ee', threshold:null },
+  { key:'aerosol', label:'PM2.5', unit:'μg', className:'chart-green', color:'#10b981', threshold:35 },
 ];
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background:'var(--bg3)', border:'1px solid var(--border2)', borderRadius:4, padding:'8px 12px', fontFamily:'var(--font-mono)', fontSize:10 }}>
-      <div style={{ color:'var(--text3)', marginBottom:4 }}>{label}</div>
-      {payload.map((p,i) => <div key={i} style={{ color:p.color }}>{p.name}: {p.value}</div>)}
+    <div className="chart-tooltip">
+      <div>{label}</div>
+      {payload.map((p, i) => <strong key={i}>{p.name}: {p.value}</strong>)}
     </div>
   );
 };
 
 export default function TrendChart({ room }) {
   const [activeMetric, setActiveMetric] = useState('co2');
-  const metric  = METRICS.find(m => m.key === activeMetric);
+  const metric = METRICS.find(m => m.key === activeMetric);
   const current = room?.hasMeasurement;
-  const pred    = room?.prediction;
+  const pred = room?.prediction;
 
   const data = useMemo(() => {
     if (!current) return [];
-    const val  = current[activeMetric];
+    const val = current[activeMetric];
     if (val === null || val === undefined) return [];
     const rate = pred?.change_rate || 0;
-    return Array.from({ length:6 }, (_,i) => ({
-      time:`${-5+i}h`,
-      value: Math.max(0, Math.round(val + rate*(i-5))),
+    return Array.from({ length: 7 }, (_, i) => ({
+      time: i === 6 ? 'NOW' : `${-30 + i * 5}m`,
+      value: Math.max(0, Math.round(val + rate * (i - 6))),
     }));
   }, [current, activeMetric, pred]);
 
   if (!room) return null;
 
   return (
-    <div style={{ background:'var(--bg2)', border:'1px solid var(--border)', borderRadius:6, padding:'14px 16px' }}>
-      <div style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--text3)', letterSpacing:'0.1em', marginBottom:12 }}>TREND</div>
+    <div className="trend-panel">
+      <div className="section-title">실시간 추세</div>
 
-      <div style={{ display:'flex', gap:4, marginBottom:14 }}>
+      <div className="metric-tabs">
         {METRICS.map(m => (
-          <button key={m.key} onClick={() => setActiveMetric(m.key)} style={{
-            padding:'3px 10px', borderRadius:2, fontSize:9, fontFamily:'var(--font-mono)', cursor:'pointer',
-            background: activeMetric===m.key ? `${m.color}18` : 'transparent',
-            border:`1px solid ${activeMetric===m.key ? m.color : 'var(--border)'}`,
-            color: activeMetric===m.key ? m.color : 'var(--text3)',
-            transition:'all 0.2s', letterSpacing:'0.04em',
-          }}>
+          <button key={m.key} onClick={() => setActiveMetric(m.key)} className={activeMetric === m.key ? 'active' : ''}>
             {m.label}
           </button>
         ))}
       </div>
 
-      <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:14 }}>
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:28, fontWeight:600, color:metric?.color, lineHeight:1 }}>
-          {current?.[activeMetric] ?? '—'}
-        </span>
-        <span style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--text3)' }}>{metric?.unit}</span>
+      <div className="current-metric">
+        <strong style={{ color: metric?.color }}>{current?.[activeMetric] ?? '—'}</strong>
+        <span>{metric?.unit}</span>
         {pred && pred.trend !== 'unknown' && (
-          <span style={{ fontFamily:'var(--font-mono)', fontSize:9, color:'var(--text3)', marginLeft:8 }}>
-            {pred.trend==='increasing'?'↑ 증가':pred.trend==='decreasing'?'↓ 감소':'→ 안정'}
-          </span>
+          <em>{pred.trend === 'increasing' ? '증가 추세' : pred.trend === 'decreasing' ? '감소 추세' : '안정'}</em>
         )}
       </div>
 
       {data.length > 0 ? (
-        <ResponsiveContainer width="100%" height={140}>
-          <LineChart data={data} margin={{ top:5, right:8, left:-24, bottom:0 }}>
-            <CartesianGrid strokeDasharray="2 4" stroke="var(--border)" />
-            <XAxis dataKey="time" tick={{ fontFamily:'var(--font-mono)', fontSize:8, fill:'var(--text3)' }} />
-            <YAxis tick={{ fontFamily:'var(--font-mono)', fontSize:8, fill:'var(--text3)' }} />
+        <ResponsiveContainer width="100%" height={170}>
+          <LineChart data={data} margin={{ top: 8, right: 12, left: -22, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 6" stroke="rgba(148,163,184,0.14)" />
+            <XAxis dataKey="time" tick={{ fontSize: 10, fill: '#64748b' }} />
+            <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
             <Tooltip content={<CustomTooltip />} />
-            {metric?.threshold && <ReferenceLine y={metric.threshold} stroke="var(--danger)" strokeDasharray="3 3" strokeOpacity={0.5} />}
-            <Line type="monotone" dataKey="value" name={metric?.label} stroke={metric?.color} strokeWidth={1.5} dot={{ fill:metric?.color, r:2 }} activeDot={{ r:4 }} />
+            {metric?.threshold && <ReferenceLine y={metric.threshold} stroke="#ef4444" strokeDasharray="4 4" strokeOpacity={0.7} />}
+            <Line type="monotone" dataKey="value" name={metric?.label} stroke={metric?.color} strokeWidth={2.5} dot={false} activeDot={{ r: 5 }} />
           </LineChart>
         </ResponsiveContainer>
-      ) : (
-        <div style={{ height:140, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'var(--font-mono)', fontSize:9, color:'var(--text3)' }}>
-          NO DATA
-        </div>
-      )}
+      ) : <div className="no-data">NO DATA</div>}
 
       {pred?.minutes_to_danger && (
-        <div style={{ marginTop:10, padding:'6px 10px', background:'var(--danger-bg)', border:'1px solid rgba(255,64,96,0.25)', borderRadius:3, fontFamily:'var(--font-mono)', fontSize:9, color:'var(--danger)' }}>
-          ⚠ 약 {pred.minutes_to_danger}분 후 기준치 초과 예상
-        </div>
+        <div className="predict-warning">약 {pred.minutes_to_danger}분 후 기준치 초과 예상</div>
       )}
     </div>
   );
