@@ -1,72 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import TrendChart from './TrendChart';
-import { controlAC, explainRoom } from '../api';
+import { controlAC } from '../api';
 
 const STATUS = {
-  comfortable: { label:'쾌적', className:'safe' },
-  normal: { label:'보통', className:'warn' },
-  danger: { label:'위험', className:'danger' },
-  abnormal: { label:'비정상', className:'abnormal' },
+  comfortable: { label:'쾌적',   color:'var(--safe)' },
+  normal:      { label:'보통',   color:'var(--warn)' },
+  danger:      { label:'위험',   color:'var(--danger)' },
+  abnormal:    { label:'비정상', color:'var(--abnormal)' },
 };
 
-function SensorStat({ label, value, unit, warn }) {
-  return (
-    <div className={`sensor-stat ${warn ? 'warn-value' : ''}`}>
-      <span>{label}</span>
-      <strong>{value ?? '—'}{value != null && <small>{unit}</small>}</strong>
-    </div>
-  );
-}
-
-function Section({ title, children }) {
-  return (
-    <section className="detail-section">
-      <div className="section-title">{title}</div>
-      {children}
-    </section>
-  );
-}
-
-function parseSummary(text) {
-  if (!text) return [];
-  return text.replace(/\*\*/g, '').split('\n').map(v => v.trim()).filter(Boolean).slice(0, 4);
-}
-
-export default function DetailPanel({ room, onClose, onExplain }) {
+export default function DetailPanel({ room, onClose }) {
   const [acLoading, setAcLoading] = useState(false);
   const [acMsg, setAcMsg] = useState('');
   const [llm, setLlm] = useState('');
-  const [llmLoading, setLlmLoading] = useState(false);
+  const [llmLoading, setLlmLoading] = useState(true);
 
   useEffect(() => {
     if (!room) return;
-    setLlm('');
-    if (room.llm) { setLlm(room.llm); return; }
-    setLlmLoading(true);
-    explainRoom(room.room_id)
-      .then(data => {
-        const text = data.llm || '';
-        setLlm(text);
-        if (onExplain) onExplain(room.room_id, text);
-      })
-      .catch(() => setLlm('LLM 해석 실패'))
-      .finally(() => setLlmLoading(false));
-  }, [room, onExplain]);
+
+    if (room.llm) {
+      setLlm(room.llm);
+      setLlmLoading(false);
+    } else {
+      setLlm('');
+      setLlmLoading(true);
+    }
+  }, [room]);
 
   if (!room) return null;
 
-  const m = room.hasMeasurement || {};
   const s = STATUS[room.hasState] || STATUS.abnormal;
-  const th = room.type === 'hall'
-    ? { co2:1000, aerosol:50 }
-    : { co2:1000, aerosol:35, temp:[18,28], hum:[30,80] };
 
   const handleAC = async (action) => {
     setAcLoading(true);
     setAcMsg('');
+
     try {
       await controlAC(room.room_id, action);
-      setAcMsg(`AC ${action === 'on' ? 'ON' : 'OFF'} 완료`);
+      setAcMsg(`에어컨 ${action === 'on' ? 'ON' : 'OFF'} 완료`);
     } catch {
       setAcMsg('제어 실패');
     } finally {
@@ -75,65 +46,73 @@ export default function DetailPanel({ room, onClose, onExplain }) {
     }
   };
 
-  const summary = parseSummary(llm);
-
   return (
-    <div className="detail-panel glass-panel">
-      <div className={`detail-hero ${s.className}`}>
-        <button className="close-button" onClick={onClose}>닫기</button>
-        <p className="eyebrow">ROOM DETAIL</p>
-        <h2>{room.name}</h2>
-        <div className="detail-meta">
-          <span className={`severity-dot ${room.hasState}`} />
-          <strong>{s.label}</strong>
-          <em>{room.room_id}</em>
-          <em>{room.hasOccupancy === null ? '재실 미확인' : room.hasOccupancy ? `${room.occupantCount}명 재실` : '무재실'}</em>
+    <div style={{ width:420, flexShrink:0, borderLeft:'1px solid var(--border)', background:'var(--bg)', overflowY:'auto', animation:'slideIn 0.25s ease' }}>
+      <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'flex-start', position:'sticky', top:0, background:'var(--bg)', zIndex:10 }}>
+        <div>
+          <div style={{ fontWeight:600, fontSize:14, marginBottom:3 }}>{room.name}</div>
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <div style={{ width:6, height:6, borderRadius:'50%', background:s.color }}/>
+            <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:s.color }}>{s.label}</span>
+            <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--text3)' }}>|</span>
+            <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--text2)' }}>
+              {room.hasOccupancy === null ? '재실미확인' : room.hasOccupancy ? `재실 ${room.occupantCount}명` : '무재실'}
+            </span>
+          </div>
         </div>
+        <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text2)', fontSize:18, padding:4 }}>✕</button>
       </div>
 
-      <div className="detail-content">
-        <Section title="센서 핵심 지표">
-          <div className="sensor-stat-grid">
-            <SensorStat label="CO₂" value={m.co2} unit="ppm" warn={m.co2 > th.co2} />
-            <SensorStat label="PM2.5" value={m.aerosol} unit="μg/m³" warn={m.aerosol > th.aerosol} />
-            <SensorStat label="온도" value={m.temp} unit="°C" warn={m.temp != null && th.temp && (m.temp < th.temp[0] || m.temp > th.temp[1])} />
-            <SensorStat label="습도" value={m.hum} unit="%" warn={m.hum != null && th.hum && (m.hum < th.hum[0] || m.hum > th.hum[1])} />
-            <SensorStat label="열화상 MAX" value={m.stats_max} unit="°C" warn={m.stats_max >= 50} />
-            <SensorStat label="열화상 AVG" value={m.stats_avg} unit="°C" />
+      <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:20 }}>
+        <div>
+          <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--text3)', letterSpacing:'0.08em', marginBottom:10 }}>
+            LLM INTERPRETATION
           </div>
-        </Section>
+
+          {llmLoading ? (
+            <div style={{ padding:'12px 14px', background:'var(--bg2)', borderRadius:8, border:'1px solid var(--border)', display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ width:14, height:14, border:'2px solid var(--border2)', borderTopColor:'var(--accent)', borderRadius:'50%', animation:'spin 0.8s linear infinite', flexShrink:0 }}/>
+              <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--text2)' }}>
+                LLM 분석 로딩 중...
+              </span>
+            </div>
+          ) : (
+            <div style={{ padding:'12px 14px', background:'var(--bg2)', borderRadius:8, border:'1px solid var(--border)', fontSize:12, lineHeight:1.7, color:'var(--text2)', whiteSpace:'pre-wrap' }}>
+              {llm || 'LLM 결과 없음'}
+            </div>
+          )}
+        </div>
 
         <TrendChart room={room} />
 
-        <Section title="AI 분석 요약">
-          {llmLoading ? (
-            <div className="ai-box loading-ai"><span className="mini-spinner" />AI가 공간 상태를 분석 중입니다.</div>
-          ) : (
-            <div className="ai-summary-list">
-              {(summary.length ? summary : ['분석 결과가 없습니다.']).map((line, i) => (
-                <div key={i} className="ai-summary-item">{line}</div>
-              ))}
-            </div>
-          )}
-        </Section>
-
-        {room.reason?.length > 0 && (
-          <Section title="판단 근거">
-            <div className="reason-list">
-              {room.reason.map((r, i) => <div key={i}>{r}</div>)}
-            </div>
-          </Section>
-        )}
-
         {room.hasAC && (
-          <Section title="공조 제어">
-            <div className="ac-control-row">
-              <button onClick={() => handleAC('on')} disabled={acLoading}>냉방 ON</button>
-              <button onClick={() => handleAC('off')} disabled={acLoading}>전원 OFF</button>
+          <div>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--text3)', letterSpacing:'0.08em', marginBottom:10 }}>
+              AC CONTROL
             </div>
-            {acMsg && <div className="control-message">{acMsg}</div>}
-          </Section>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => handleAC('on')} disabled={acLoading} style={{ flex:1, padding:'10px 0', borderRadius:8, cursor:'pointer', background:'rgba(137,180,250,0.1)', border:'1px solid var(--accent)', color:'var(--accent)', fontFamily:'var(--font-mono)', fontSize:12 }}>❄ ON</button>
+              <button onClick={() => handleAC('off')} disabled={acLoading} style={{ flex:1, padding:'10px 0', borderRadius:8, cursor:'pointer', background:'rgba(88,91,112,0.2)', border:'1px solid var(--border2)', color:'var(--text2)', fontFamily:'var(--font-mono)', fontSize:12 }}>○ OFF</button>
+            </div>
+            {acMsg && <div style={{ marginTop:8, fontFamily:'var(--font-mono)', fontSize:11, color:'var(--safe)', textAlign:'center' }}>{acMsg}</div>}
+          </div>
         )}
+
+        <div>
+          <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--text3)', letterSpacing:'0.08em', marginBottom:10 }}>
+            SENSORS
+          </div>
+          {['EDC', 'IRC', 'RDC'].map(type =>
+            room.hasSensor?.[type]?.length > 0 && (
+              <div key={type} style={{ marginBottom:6 }}>
+                <span style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--text3)', marginRight:6 }}>{type}</span>
+                {room.hasSensor[type].map(d => (
+                  <span key={d} style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--text2)', marginRight:6 }}>{d}</span>
+                ))}
+              </div>
+            )
+          )}
+        </div>
       </div>
     </div>
   );

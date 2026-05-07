@@ -1,7 +1,10 @@
-const WS_URL = process.env.REACT_APP_WS_URL || 'ws://100.79.44.109:6668/ws';
+const WS_URL = process.env.REACT_APP_WS_URL;
 
 export const fetchRooms = () =>
   fetch('/api/rooms').then(r => r.json());
+
+export const fetchRoomsWithLlm = () =>
+  fetch('/api/rooms?include_llm=true').then(r => r.json());
 
 export const fetchRoom = (roomId) =>
   fetch(`/api/rooms/${roomId}`).then(r => r.json());
