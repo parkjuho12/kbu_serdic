@@ -24,12 +24,12 @@ def _wmax(lst, key):
 
 
 ROOM_NAME_KR = {
-    '2F-LEFT':  '2층 왼쪽 교실',
+    '2F-LEFT':  '2층 왼쪽 강의실',
     '2F-HALL':  '2층 중앙 홀',
-    '2F-RIGHT': '2층 오른쪽 대형실',
-    '3F-LEFT':  '3층 왼쪽 교실',
+    '2F-RIGHT': '2층 오른쪽 대형 강의실',
+    '3F-LEFT':  '3층 왼쪽 강의실',
     '3F-HALL':  '3층 중앙 홀',
-    '3F-RIGHT': '3층 오른쪽 대형실',
+    '3F-RIGHT': '3층 오른쪽 대형 강의실',
 }
 
 def load_room_mapping():
