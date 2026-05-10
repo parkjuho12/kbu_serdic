@@ -25,6 +25,7 @@ def rule_engine(o):
     co2 = m.get('co2'); aerosol = m.get('aerosol')
     temp = m.get('temp'); hum = m.get('hum')
     stats_max = m.get('stats_max')
+    stats_avg = m.get('stats_avg')
 
     if co2 is None and aerosol is None:
         o['hasState'] = 'abnormal'; o['reason'] = ['센서 데이터 없음']; o['prediction'] = None
@@ -60,9 +61,15 @@ def rule_engine(o):
             anomaly += 1
             reason.append(f'습도 이상: {hum}% (기준 {th["hum"]["min"]}~{th["hum"]["max"]})')
 
+    # IRC 열화상 판단
     if stats_max is not None and stats_max >= 50:
         status = 'danger'
         reason.append(f'열화상 과열: {stats_max}°C')
+
+    # IRC 보조 재실 판단 — RDC 미설치(occupied=None)인 경우에만 적용
+    if occupied is None and stats_avg is not None and stats_avg >= 30:
+        occupied = True
+        reason.append(f'IRC 재실 보조 감지: 열화상 평균 {stats_avg}°C')
 
     if anomaly >= 2 and status == 'normal':
         status = 'danger'
@@ -74,7 +81,7 @@ def rule_engine(o):
         status = 'abnormal'
         reason.append('무재실 위험 → 비정상')
     elif occupied is None:
-        reason.append('재실 정보 없음 (레이더 미설치)')
+        reason.append('재실 정보 없음 (레이더·열화상 미설치)')
 
     prediction = None
     if co2 is not None and trend:

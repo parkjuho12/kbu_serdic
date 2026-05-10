@@ -1,10 +1,3 @@
-"""
-KBU 실내환경 모니터링 — FastAPI 메인
-- 방별 센서/룰 판단 병렬 처리
-- LLM 분석 병렬 처리 옵션 추가
-- WebSocket 실시간 업데이트 + WebSocket 제어 메시지 지원
-- 수동 AC 제어가 자동 제어에 바로 덮이지 않도록 자동 제어 분리
-"""
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,13 +6,13 @@ import json
 import os
 from datetime import datetime
 
-from config import ROOM_MAPPING
-from sensor import build_ontology
+from config import THINQ_DEVICE
+from sensor import build_ontology, load_room_mapping
 from rule_engine import rule_engine
 from llm import llm_explain
 from ac import ac_control, apply_ac
 
-app = FastAPI(title='KBU 실내환경 모니터링', version='1.1.0')
+app = FastAPI(title='KBU 실내환경 모니터링', version='1.2.0')
 
 app.add_middleware(
     CORSMiddleware,
@@ -70,7 +63,6 @@ def _judge_room_sync(room_id: str, mapping: dict) -> dict:
 
 
 async def judge_room(room_id: str, mapping: dict, auto_ac: bool = False) -> dict:
-    # DB 조회와 rule_engine은 동기 코드라 event loop를 막지 않도록 thread로 넘김
     result = await asyncio.to_thread(_judge_room_sync, room_id, mapping)
     if auto_ac:
         await apply_ac(mapping, result)
@@ -78,7 +70,6 @@ async def judge_room(room_id: str, mapping: dict, auto_ac: bool = False) -> dict
 
 
 async def add_llm(result: dict) -> dict:
-    # llm_explain 내부 requests.post가 동기 호출이므로 병렬 thread 처리
     result = dict(result)
     try:
         result['llm'] = await asyncio.to_thread(llm_explain, result)
@@ -91,6 +82,9 @@ async def add_llm(result: dict) -> dict:
 
 
 async def run_all(include_llm: bool = False, auto_ac: bool = True) -> list[dict]:
+    # 매 요청마다 DB에서 최신 매핑 로드
+    ROOM_MAPPING = await asyncio.to_thread(load_room_mapping)
+
     tasks = [
         judge_room(room_id, mapping, auto_ac=auto_ac)
         for room_id, mapping in ROOM_MAPPING.items()
@@ -129,6 +123,7 @@ async def run_all(include_llm: bool = False, auto_ac: bool = True) -> list[dict]
 
 
 async def control_room_ac(room_id: str, action: str) -> dict:
+    ROOM_MAPPING = await asyncio.to_thread(load_room_mapping)
     if room_id not in ROOM_MAPPING:
         raise HTTPException(status_code=404, detail=f'{room_id} not found')
 
@@ -162,16 +157,16 @@ async def health():
 
 
 @app.get('/api/rooms')
-
 async def get_rooms(
-    include_llm: bool = Query(False, description='true면 모든 공간 LLM 분석을 병렬로 포함'),
-    auto_ac: bool = Query(True, description='true면 판단 결과에 따라 자동 AC 제어'),
+    include_llm: bool = Query(False),
+    auto_ac: bool = Query(True),
 ):
     return await run_all(include_llm=include_llm, auto_ac=auto_ac)
 
 
 @app.get('/api/rooms/{room_id}')
 async def get_room(room_id: str, include_llm: bool = False):
+    ROOM_MAPPING = await asyncio.to_thread(load_room_mapping)
     if room_id not in ROOM_MAPPING:
         raise HTTPException(status_code=404, detail=f'{room_id} not found')
     result = await judge_room(room_id, ROOM_MAPPING[room_id], auto_ac=False)
@@ -182,6 +177,7 @@ async def get_room(room_id: str, include_llm: bool = False):
 
 @app.get('/api/rooms/{room_id}/explain')
 async def explain_room(room_id: str):
+    ROOM_MAPPING = await asyncio.to_thread(load_room_mapping)
     if room_id not in ROOM_MAPPING:
         raise HTTPException(status_code=404, detail=f'{room_id} not found')
     result = await judge_room(room_id, ROOM_MAPPING[room_id], auto_ac=False)
@@ -213,7 +209,6 @@ async def ws_receiver(ws: WebSocket):
             await ws.send_text(json.dumps({'type': 'error', 'detail': 'JSON 형식이 아닙니다'}, ensure_ascii=False))
             continue
 
-        # 프론트에서 보낼 예시: {"type":"ac_control","room_id":"3F-LEFT","action":"on"}
         if msg.get('type') == 'ac_control':
             try:
                 event = await control_room_ac(msg.get('room_id'), msg.get('action'))
