@@ -242,13 +242,16 @@ project/
 - MariaDB (SERDIC EdgeHub에서 수집 중인 DB)
 - Ollama (로컬 LLM 서버, Gemma 모델 등록 완료)
 
+## 환경변수
+cp .env.example .env
+
 ### 백엔드
 
 ```bash
 cd backend
 pip install fastapi uvicorn aiohttp pymysql pandas python-dotenv thinqconnect
-cp .env.example .env
 uvicorn main:app --host 0.0.0.0 --port 6668
+
 ```
 
 ### 프론트엔드
