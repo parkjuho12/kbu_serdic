@@ -14,6 +14,22 @@ export default function DetailPanel({ room, onClose }) {
   const [acMsg, setAcMsg] = useState('');
   const [llm, setLlm] = useState('');
   const [llmLoading, setLlmLoading] = useState(true);
+  const [speaking, setSpeaking] = useState(false);
+
+  const hasSpeech = typeof window !== 'undefined' && !!window.speechSynthesis;
+
+  const speakLlm = (text) => {
+    if (!hasSpeech) {
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ko-KR';
+    utterance.onstart = () => setSpeaking(true);
+    utterance.onend = () => setSpeaking(false);
+    utterance.onerror = () => setSpeaking(false);
+    window.speechSynthesis.speak(utterance);
+  };
 
   useEffect(() => {
     if (!room) return;
@@ -65,8 +81,29 @@ export default function DetailPanel({ room, onClose }) {
 
       <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:20 }}>
         <div>
-          <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--text3)', letterSpacing:'0.08em', marginBottom:10 }}>
-            LLM INTERPRETATION
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
+            <div style={{ fontFamily:'var(--font-mono)', fontSize:10, color:'var(--text3)', letterSpacing:'0.08em' }}>
+              LLM INTERPRETATION
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (speaking) {
+                  window.speechSynthesis.cancel();
+                  setSpeaking(false);
+                } else if (llm) {
+                  speakLlm(llm);
+                }
+              }}
+              disabled={llmLoading || !llm || !window.speechSynthesis}
+              style={{
+                fontFamily:'var(--font-mono)', fontSize:11, color:'var(--accent)',
+                background:'none', border:'1px solid var(--accent)', borderRadius:8,
+                padding:'6px 10px', cursor: llmLoading || !llm || !window.speechSynthesis ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {speaking ? '음성 중지' : '음성 듣기'}
+            </button>
           </div>
 
           {llmLoading ? (
