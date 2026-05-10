@@ -216,20 +216,21 @@ project/
 │   ├── llm.py           # Ollama LLM 호출, 자연어 생성
 │   ├── ac.py            # LG ThinQ API 에어컨 제어
 │   ├── config.py        # 환경 변수, 임계값, 공간 매핑
-│   └── .env             # 시크릿 (버전 관리 제외)
+│   
 ├── notebooks/
 │   └── rule_engine_v4.ipynb  # 프로토타입 (CSV 기반 개발·검증용)
 └── src/
-    ├── App.js
-    ├── api.js
-    ├── index.css
-    └── components/
-        ├── Header.js
-        ├── SummaryBar.js
-        ├── FloorLayout.js
-        ├── RoomCard.js
-        ├── DetailPanel.js
-        └── TrendChart.js
+│   ├── App.js
+│   ├── api.js
+│   ├── index.css
+│   └── components/
+│       ├── Header.js
+│       ├── SummaryBar.js
+│       ├── FloorLayout.js
+│       ├── RoomCard.js
+│       ├── DetailPanel.js
+│       └── TrendChart.js
+└── .env             # 시크릿 (버전 관리 제외)
 ```
 
 ---
