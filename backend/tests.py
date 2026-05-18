@@ -1,11 +1,15 @@
 """
 backend/tests.py
 
-온톨로지 + 규칙 기반 판단 결과를 이용한
-통제 없는 LLM vs 통제된 LLM 비교 실험
+LLM Only / LLM + Ontology / Controlled LLM
+3가지 구조 비교 실험
 
-실행:
-python tests.py
+- SCR(State Consistency)
+- HR(Hallucination Rate)
+- SP(Specificity)
+- ERR(재현성 분석용 로그)
+
+측정용 테스트 코드
 """
 
 import csv
@@ -66,7 +70,7 @@ def fetch_samples(room_id='3F-LEFT', limit=30):
         with conn.cursor() as cur:
 
             cur.execute("""
-                SELECT created_at   
+                SELECT created_at
                 FROM telemetry_cal
                 WHERE device_id = %s
                 ORDER BY RAND()
@@ -153,11 +157,16 @@ def fetch_samples(room_id='3F-LEFT', limit=30):
     return samples
 
 
+# --------------------------------------------------
+# LLM ONLY
+# --------------------------------------------------
+
 def prompt_uncontrolled(o):
 
     m = o['hasMeasurement']
 
-    return f"""실내 환경 센서 데이터를 해석해줘.
+    return f"""
+실내 환경 센서 데이터를 해석해줘.
 
 CO2: {m.get('co2')}ppm
 PM2.5: {m.get('aerosol')}μg/m³
@@ -166,6 +175,30 @@ PM2.5: {m.get('aerosol')}μg/m³
 
 현재 환경 상태를 설명하고
 필요한 행동 지침을 알려줘.
+"""
+
+
+# --------------------------------------------------
+# LLM + ONTOLOGY
+# --------------------------------------------------
+
+def prompt_ontology(o):
+
+    m = o['hasMeasurement']
+
+    return f"""
+ontology 기반 실내 환경 context이다.
+
+공간 유형: {o['type']}
+
+CO2: {m.get('co2')}
+PM2.5: {m.get('aerosol')}
+온도: {m.get('temp')}
+습도: {m.get('hum')}
+
+재실 인원: {o['occupantCount']}
+
+현재 환경 상태를 설명해줘.
 """
 
 
@@ -193,6 +226,73 @@ def call_llm(prompt):
         return f'오류: {e}'
 
 
+# --------------------------------------------------
+# 간단 평가 함수
+# --------------------------------------------------
+
+def calc_scr(text, state):
+
+    text = text.lower()
+
+    keywords = {
+        'comfortable': ['쾌적', '정상'],
+        'normal': ['보통'],
+        'danger': ['위험', '환기'],
+        'abnormal': ['비정상']
+    }
+
+    for k in keywords.get(state, []):
+
+        if k in text:
+            return 1
+
+    return 0
+
+
+def detect_hallucination(text):
+
+    hallucination_keywords = [
+        '대피',
+        '화재',
+        '폭발',
+        '외부 오염',
+        '응급'
+    ]
+
+    for k in hallucination_keywords:
+
+        if k in text:
+            return 1
+
+    return 0
+
+
+def calc_specificity(text):
+
+    score = 0
+
+    keywords = [
+        'co2',
+        'pm2.5',
+        '환기',
+        '온도',
+        '습도'
+    ]
+
+    text = text.lower()
+
+    for k in keywords:
+
+        if k.lower() in text:
+            score += 1
+
+    return round(score / len(keywords), 2)
+
+
+# --------------------------------------------------
+# CSV 저장
+# --------------------------------------------------
+
 def save_csv(rows):
 
     with open(
@@ -205,27 +305,41 @@ def save_csv(rows):
         writer = csv.writer(f)
 
         writer.writerow([
-            'status',
+
+            'sample_id',
+
+            'rule_state',
+
             'co2',
             'pm25',
             'temp',
             'hum',
-            'uncontrolled',
-            'controlled',
+
+            'llm_only',
+            'llm_ontology',
+            'controlled_llm',
+
+            'scr_llm_only',
+            'scr_ontology',
+            'scr_controlled',
+
+            'hr_llm_only',
+            'hr_ontology',
+            'hr_controlled',
+
+            'sp_llm_only',
+            'sp_ontology',
+            'sp_controlled',
         ])
 
         for r in rows:
 
-            writer.writerow([
-                r['status'],
-                r['co2'],
-                r['pm25'],
-                r['temp'],
-                r['hum'],
-                r['unc'],
-                r['ctrl'],
-            ])
+            writer.writerow(r)
 
+
+# --------------------------------------------------
+# 실행
+# --------------------------------------------------
 
 def run():
 
@@ -242,33 +356,54 @@ def run():
 
         judged = rule_engine(o)
 
+        state = judged['hasState']
+
+        # LLM ONLY
         unc = call_llm(
             prompt_uncontrolled(o)
         )
 
+        # LLM + Ontology
+        onto = call_llm(
+            prompt_ontology(o)
+        )
+
+        # Controlled LLM
         ctrl = llm_explain(judged)
 
-        print(f'통제X: {unc[:80]}')
-        print(f'통제O: {ctrl[:80]}')
+        print(f'LLM ONLY: {unc[:60]}')
+        print(f'ONTOLOGY : {onto[:60]}')
+        print(f'CONTROL  : {ctrl[:60]}')
 
         m = judged['hasMeasurement']
 
-        rows.append({
+        rows.append([
 
-            'status': judged['hasState'],
+            idx,
 
-            'co2': m.get('co2'),
+            state,
 
-            'pm25': m.get('aerosol'),
+            m.get('co2'),
+            m.get('aerosol'),
+            m.get('temp'),
+            m.get('hum'),
 
-            'temp': m.get('temp'),
+            unc,
+            onto,
+            ctrl,
 
-            'hum': m.get('hum'),
+            calc_scr(unc, state),
+            calc_scr(onto, state),
+            calc_scr(ctrl, state),
 
-            'unc': unc,
+            detect_hallucination(unc),
+            detect_hallucination(onto),
+            detect_hallucination(ctrl),
 
-            'ctrl': ctrl,
-        })
+            calc_specificity(unc),
+            calc_specificity(onto),
+            calc_specificity(ctrl),
+        ])
 
     save_csv(rows)
 
