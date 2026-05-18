@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+aiohttp
+pymysql
+pandas
+python-dotenv
+requests
+thinqconnect

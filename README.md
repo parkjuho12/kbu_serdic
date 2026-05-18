@@ -192,19 +192,20 @@ SERDIC이 구축한 메시 네트워크(Edge Hub)를 통해 3종 이기종 센�
 
 ```
 kbu_serdic/
-├── .env                      # 환경 변수 (버전 관리 제외)
+├── .env                       # 환경 변수 (버전 관리 제외)
 ├── backend/
-│   ├── main.py               # FastAPI 앱, REST·WebSocket
-│   ├── sensor.py             # DB 동적 매핑, 온톨로지 빌드
-│   ├── rule_engine.py        # 규칙 판단, CO₂ 추세 예측
-│   ├── llm.py                # Ollama LLM 호출
-│   ├── ac.py                 # LG ThinQ API 에어컨 제어
-│   ├── config.py             # 환경 변수, 임계값
-│   └── test.py               # LLM 출력 비교 실험
+│   ├── main.py                # FastAPI 앱, REST·WebSocket
+│   ├── sensor.py              # DB 동적 매핑, 온톨로지 빌드
+│   ├── rule_engine.py         # 규칙 판단, CO₂ 추세 예측
+│   ├── llm.py                 # Ollama LLM 호출
+│   ├── ac.py                  # LG ThinQ API 에어컨 제어
+│   ├── config.py              # 환경 변수, 임계값
+│   ├── test.py                # LLM 출력 비교 실험
+│   └── requirements.txt       # Python 패키지 의존성 목록
 ├── notebooks/
-│   ├── rule_engine_v4.ipynb  # 프로토타입 (CSV 기반 개발·검증)
-│   └── llm_comparison_raw.csv
-├── build/                    # 프론트엔드 빌드 결과물
+│   ├── rule_engine_v4.ipynb   # 프로토타입 (CSV 기반 개발·검증)
+│   └── llm_comparison_raw.csv # 논문 표 11 근거
+├── build/                     # 프론트엔드 빌드 결과물
 └── src/
     ├── App.js
     ├── api.js
@@ -226,7 +227,6 @@ kbu_serdic/
 
 | 변수 | 설명 | 예시 |
 |------|------|------|
-| `SENSOR_BASE` | CSV fallback 경로 | `/home/kbu/sensor` |
 | `OLLAMA_HOST` | Ollama 호스트 | `127.0.0.1` |
 | `OLLAMA_PORT` | Ollama 포트 | `11434` |
 | `OLLAMA_MODEL` | 모델명 | `my-gemma` |
@@ -245,7 +245,7 @@ kbu_serdic/
 
 ```bash
 cd backend
-pip install fastapi uvicorn aiohttp pymysql pandas python-dotenv thinqconnect
+pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 6668
 ```
 
