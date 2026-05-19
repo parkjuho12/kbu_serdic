@@ -200,7 +200,7 @@ kbu_serdic/
 │   ├── llm.py                 # Ollama LLM 호출
 │   ├── ac.py                  # LG ThinQ API 에어컨 제어
 │   ├── config.py              # 환경 변수, 임계값
-│   ├── test.py                # LLM 출력 비교 실험
+│   ├── tests.py               # LLM 출력 비교 실험(논문 6.5 근거)
 │   └── requirements.txt       # Python 패키지 의존성 목록
 ├── notebooks/
 │   ├── rule_engine_v4.ipynb   # 프로토타입 (CSV 기반 개발·검증)

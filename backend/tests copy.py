@@ -6,8 +6,6 @@ LLM Only / LLM + Ontology / Controlled LLM
 
 - SCR(State Consistency)
 - HR(Hallucination Rate)
-- SP(Specificity)
-- ERR(재현성 분석용 로그)
 
 측정용 테스트 코드
 """
@@ -138,13 +136,9 @@ def fetch_samples(room_id='3F-LEFT', limit=30):
                 },
 
                 'hasOccupancy': None,
-
                 'occupantCount': 0,
-
                 'hasState': None,
-
                 'reason': [],
-
                 'prediction': None,
             }
 
@@ -187,18 +181,29 @@ def prompt_ontology(o):
     m = o['hasMeasurement']
 
     return f"""
-ontology 기반 실내 환경 context이다.
+
+다음은 ontology 기반으로 구조화된
+
+실내 환경 context 정보이다.
 
 공간 유형: {o['type']}
 
-CO2: {m.get('co2')}
-PM2.5: {m.get('aerosol')}
-온도: {m.get('temp')}
-습도: {m.get('hum')}
+환경 정보
 
-재실 인원: {o['occupantCount']}
+- CO2: {m.get('co2')}
 
-현재 환경 상태를 설명해줘.
+- PM2.5: {m.get('aerosol')}
+
+- 온도: {m.get('temp')}
+
+- 습도: {m.get('hum')}
+
+재실 정보
+
+- 재실 인원: {o['occupantCount']}
+
+위 context를 기반으로
+현재 실내 환경 상태를 설명해줘.
 """
 
 
@@ -227,66 +232,127 @@ def call_llm(prompt):
 
 
 # --------------------------------------------------
-# 간단 평가 함수
+# SCR 계산
 # --------------------------------------------------
+
+
 
 def calc_scr(text, state):
 
     text = text.lower()
 
-    keywords = {
-        'comfortable': ['쾌적', '정상'],
-        'normal': ['보통'],
-        'danger': ['위험', '환기'],
-        'abnormal': ['비정상']
+    positive_keywords = {
+
+        'comfortable': [
+
+            '쾌적',
+            '양호',
+            '안정',
+            '적절'
+        ],
+
+        'normal': [
+            '보통',
+            '일반',
+            '무난'
+        ],
+        'danger': [
+            '위험',
+            '주의',
+            '나쁨'
+        ],
+
+        'abnormal': [
+            '비정상',
+            '이상',
+            '오류'
+        ]
     }
 
-    for k in keywords.get(state, []):
+    negative_keywords = {
+
+        'comfortable': [
+            '위험',
+            '주의',
+            '나쁨',
+            '비정상'
+        ],
+
+        'normal': [
+            '위험',
+            '비정상'
+        ],
+        'danger': [
+            '쾌적',
+            '양호',
+            '정상'
+        ],
+        'abnormal': [
+            '쾌적',
+            '양호',
+            '정상'
+        ]
+    }
+
+    # 상태 키워드 포함 여부
+
+    positive_match = False
+
+    for k in positive_keywords.get(state, []):
 
         if k in text:
-            return 1
 
-    return 0
+            positive_match = True
 
+            break
+
+    if not positive_match:
+
+        return 0
+
+    # 반대 상태 키워드 포함 시 실패
+
+    for k in negative_keywords.get(state, []):
+
+        if k in text:
+
+            return 0
+
+    return 1
+
+
+# --------------------------------------------------
+# HR 계산
+# --------------------------------------------------
 
 def detect_hallucination(text):
 
+    text = text.lower()
+
     hallucination_keywords = [
+
         '대피',
-        '화재',
         '폭발',
+        '화재',
+        '응급',
+        '구조 요청',
         '외부 오염',
-        '응급'
+        '중독 위험',
+        '생명 위험',
+        '즉시 탈출',
+        '심각한 오염',
+        '치명적',
     ]
+
+    hallucination_count = 0
 
     for k in hallucination_keywords:
 
         if k in text:
-            return 1
 
-    return 0
+            hallucination_count += 1
 
-
-def calc_specificity(text):
-
-    score = 0
-
-    keywords = [
-        'co2',
-        'pm2.5',
-        '환기',
-        '온도',
-        '습도'
-    ]
-
-    text = text.lower()
-
-    for k in keywords:
-
-        if k.lower() in text:
-            score += 1
-
-    return round(score / len(keywords), 2)
+    return 1 if hallucination_count > 0 else 0
 
 
 # --------------------------------------------------
@@ -326,10 +392,6 @@ def save_csv(rows):
             'hr_llm_only',
             'hr_ontology',
             'hr_controlled',
-
-            'sp_llm_only',
-            'sp_ontology',
-            'sp_controlled',
         ])
 
         for r in rows:
@@ -399,10 +461,6 @@ def run():
             detect_hallucination(unc),
             detect_hallucination(onto),
             detect_hallucination(ctrl),
-
-            calc_specificity(unc),
-            calc_specificity(onto),
-            calc_specificity(ctrl),
         ])
 
     save_csv(rows)
