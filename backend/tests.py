@@ -315,6 +315,8 @@ def calc_specificity(text):
     '미세먼지',
     '환기',
     '공기질',
+    '습도',
+    '온도',
     ]
 
     score = 0
