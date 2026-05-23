@@ -51,7 +51,7 @@
 | `llm.py` | Ollama LLM 호출, TTS용 자연어 생성 |
 | `ac.py` | LG ThinQ API 에어컨 제어 |
 | `config.py` | 환경 변수, 임계값 (공간 매핑은 DB에서 동적 로드) |
-| `test.py` | LLM 출력 비교 실험 (통제X vs 통제O) |
+| `tests.py` | LLM 출력 비교 실험 (통제X vs 통제O) |
 
 ### 프론트엔드
 
