@@ -77,11 +77,12 @@ def rule_engine(o):
 
     if occupied is True and status == 'danger':
         reason.append('재실 + 위험 → 즉각 조치 필요')
+
     elif occupied is False and status == 'danger':
-        status = 'abnormal'
-        reason.append('무재실 위험 → 비정상')
+        reason.append('무재실 상태에서 위험 환경 감지')
+
     elif occupied is None:
-        reason.append('재실 정보 없음 (레이더·열화상 미설치)')
+        reason.append('재실 정보 없음')
 
     prediction = None
     if co2 is not None and trend:
